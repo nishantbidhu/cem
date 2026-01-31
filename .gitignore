@@ -1,0 +1,62 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code related
+.vscode/
+.history/
+.pylintrc
+.python_packages
+.venv
+env/
+venv/
+
+# Flutter/Dart related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.podspec
+**/ios/ServiceDefinitions.json
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Firebase related (Essential for security)
+firebase_options.dart
+.firebase/
+firestore.indexes.json
+firestore.rules
+functions/node_modules/
+storage.rules
+
+# Symbolization related
+/lib/generated_plugin_registrant.dart
+
+# Executables
+*.exe
+*.dll
+*.so
+*.dylib
