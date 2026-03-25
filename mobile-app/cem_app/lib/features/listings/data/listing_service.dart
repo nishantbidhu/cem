@@ -1,39 +1,3 @@
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import '../domain/listing_model.dart'; 
-
-// class ListingService {
-//   final CollectionReference _listings = 
-//       FirebaseFirestore.instance.collection('listings');
-
-//   // Stream for Marketplace (Sales only)
-//   Stream<List<Listing>> getSaleListings() {
-//     return _listings
-//         .where('isSeeking', isEqualTo: false)
-//         .snapshots()
-//         .map((snapshot) {
-//       return snapshot.docs
-//           .map((doc) => Listing.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-//           .toList();
-//     });
-//   }
-
-//   // Stream for Seek Feed (Requests only)
-//   Stream<List<Listing>> getSeekListings() {
-//     return _listings
-//         .where('isSeeking', isEqualTo: true)
-//         .snapshots()
-//         .map((snapshot) {
-//       return snapshot.docs
-//           .map((doc) => Listing.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-//           .toList();
-//     });
-//   }
-
-//   Future<void> addListing(Listing listing) {
-//     return _listings.add(listing.toMap());
-//   }
-// }
-
 
 
 
