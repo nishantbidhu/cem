@@ -1,18 +1,28 @@
+
+
+
+
+
+
+
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'dart:math' as math;
 import 'firebase_options.dart';
 
-// Fix these imports based on your folder structure
-import 'features/listings/data/listing_service.dart';
-import 'features/listings/domain/listing_model.dart';
-
-const bool isDemoMode = true; 
+// Feature & Presentation Imports
+import 'features/listings/presentation/listing_screen.dart';
+import 'features/listings/presentation/seek_feed_screen.dart';
+import 'features/listings/presentation/pages/creation_form_screen.dart';
+import 'features/listings/presentation/history_screen.dart';
+import 'features/auth/presentation/profile_screen.dart'; 
+import 'features/auth/presentation/splash_screen.dart';
+import 'features/auth/presentation/auth_page.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const CEMApp());
 }
 
@@ -22,76 +32,97 @@ class CEMApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CEM IITJ',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: const Color(0xFF003366),
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0A1128),
         useMaterial3: true,
       ),
-      // Update: Directly show the live feed for testing
-      home: isDemoMode ? MarketplaceFeed() : const LoginPage(),
+      initialRoute: '/', // Always starts at Splash -> Login
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/login': (context) => const AuthPage(), 
+        '/home': (context) => const MainNavigationWrapper(),
+      },
     );
   }
 }
 
-// Update this to use the MarketplaceFeed logic
-class MainMarketplacePage extends StatelessWidget {
-  const MainMarketplacePage({super.key});
-
+class MainNavigationWrapper extends StatefulWidget {
+  const MainNavigationWrapper({super.key});
   @override
-  Widget build(BuildContext context) {
-    return MarketplaceFeed(); 
-  }
+  State<MainNavigationWrapper> createState() => _MainNavigationWrapperState();
 }
 
-class LoginPage extends StatelessWidget {
-  const LoginPage({super.key});
+class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
+  int _selectedIndex = 0; 
 
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text("Real Login Page - REQ-1 Implementation")),
-    );
-  }
-}
-
-// This remains the same as your code, just ensures it's in the same file
-class MarketplaceFeed extends StatelessWidget {
-  final ListingService _service = ListingService();
+  final List<Widget> _pages = [
+    const ListingScreen(),
+    const SeekFeedScreen(),
+    const HistoryScreen(),
+    const ProfileScreen(), 
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("CEM Marketplace"),
-        backgroundColor: const Color(0xFF003366),
-        foregroundColor: Colors.white,
-      ),
-      body: StreamBuilder<List<Listing>>(
-        stream: _service.getListings(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+      body: IndexedStack(index: _selectedIndex, children: _pages),
+      bottomNavigationBar: _buildUnifiedDock(),
+    );
+  }
 
-          final listings = snapshot.data!;
-          
-          if (listings.isEmpty) {
-            return const Center(child: Text("No items for sale yet. Add one in the console!"));
-          }
-
-          return ListView.builder(
-            itemCount: listings.length,
-            itemBuilder: (context, index) {
-              final item = listings[index];
-              return ListTile(
-                leading: const Icon(Icons.shopping_bag, color: Color(0xFF003366)),
-                title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("₹${item.price}"),
-                trailing: Chip(label: Text(item.category)),
-              );
+  Widget _buildUnifiedDock() {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withOpacity(0.95),
+            border: const Border(top: BorderSide(color: Colors.white10)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              IconButton(
+                icon: Icon(Icons.house, color: _selectedIndex == 0 ? const Color(0xFFFFB74D) : const Color(0xFF94A3B8)),
+                onPressed: () => setState(() => _selectedIndex = 0),
+              ),
+              IconButton(
+                icon: Icon(Icons.person_search, color: _selectedIndex == 1 ? const Color(0xFFFFB74D) : const Color(0xFF94A3B8)),
+                onPressed: () => setState(() => _selectedIndex = 1),
+              ),
+              const SizedBox(width: 60),
+              IconButton(
+                icon: Icon(Icons.shopping_cart, color: _selectedIndex == 2 ? const Color(0xFFFFB74D) : const Color(0xFF94A3B8)),
+                onPressed: () => setState(() => _selectedIndex = 2),
+              ),
+              IconButton(
+                icon: Icon(Icons.account_circle, color: _selectedIndex == 3 ? const Color(0xFFFFB74D) : const Color(0xFF94A3B8)),
+                onPressed: () => setState(() => _selectedIndex = 3),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          top: -30,
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => CreationFormScreen(isSalePost: _selectedIndex == 0)));
             },
-          );
-        },
-      ),
+            child: Transform.rotate(
+              angle: 45 * math.pi / 180,
+              child: Container(
+                width: 60, height: 60,
+                decoration: BoxDecoration(color: const Color(0xFFFF8C00), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: const Color(0xFFFF8C00).withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 10))]),
+                child: Transform.rotate(angle: -45 * math.pi / 180, child: const Icon(Icons.add, color: Colors.white, size: 24)),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
