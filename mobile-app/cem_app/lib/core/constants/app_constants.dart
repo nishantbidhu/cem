@@ -7,4 +7,10 @@ class AppConstants {
   
   // Requirement REQ-10: Target admin response time
   static const Duration adminReportTimeout = Duration(hours: 48);
+
+  static const List<String> hostels = [
+    'B1', 'B2', 'B3', 'B4', 'B5', 
+    'G2', 'G3', 'G4', 'G5', 'G6', 
+    'I2', 'I3', 'O3', 'O4', 'Y3', 'Y4'
+  ];
 }
