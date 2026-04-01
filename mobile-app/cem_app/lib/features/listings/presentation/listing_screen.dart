@@ -1,10 +1,10 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/listing_service.dart';
 import '../domain/listing_model.dart';
 import 'listing_detail_screen.dart';
+import 'notifications_popup.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ListingScreen extends StatefulWidget {
   const ListingScreen({super.key});
@@ -131,7 +131,13 @@ class _ListingScreenState extends State<ListingScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           RichText(text: const TextSpan(style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white), children: [TextSpan(text: "CEM"), TextSpan(text: "."), TextSpan(text: "IITJ", style: TextStyle(color: Color(0xFFFFB74D)))])),
-          Row(children: [_buildActionBtn(Icons.qr_code_scanner, onTap: () => _showVerificationSheet(context)), _buildActionBtn(Icons.notifications)]),
+          Row(
+            children: [
+              _buildActionBtn(Icons.qr_code_scanner, onTap: () => _showVerificationSheet(context)), 
+              // --- NEW: WIRED UP THE BELL ICON ---
+              _buildActionBtn(Icons.notifications, onTap: () => showNotificationsPopup(context)),
+            ]
+          ),
         ],
       ),
     );
