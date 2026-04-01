@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'update_profile_screen.dart'; 
+import 'help_and_support_screen.dart';
 import '../../listings/presentation/my_listings_screen.dart';
 import '../../listings/data/listing_service.dart'; // ADDED IMPORT
 
@@ -40,7 +41,11 @@ class ProfileScreen extends StatelessWidget {
             "My Listings",
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MyListingsScreen())),
           ),
-          _buildMenuTile(Icons.help_outline, "Help & Support"),
+          _buildMenuTile(
+            Icons.help_outline, 
+            "Help & Support",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpAndSupportScreen())),
+            ),
           _buildMenuTile(Icons.chat_bubble_outline, "Send App Feedback"),
           
           const SizedBox(height: 10),
