@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../domain/listing_model.dart';
 
+
 class ListingDetailScreen extends StatelessWidget {
   final Listing item;
 
@@ -141,7 +142,7 @@ class ListingDetailScreen extends StatelessWidget {
           // --- 4. BOTTOM ACTION BAR ---
           Positioned(
             bottom: 30, left: 24, right: 24,
-            child: _buildInterestBar(),
+            child: _buildInterestBar(context),
           ),
         ],
       ),
@@ -233,12 +234,37 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInterestBar() {
+  Widget _buildInterestBar(BuildContext context) {
     return Row(
       children: [
         Expanded(
           child: ElevatedButton(
-            onPressed: () {}, // Email Logic to be added later
+            onPressed: () async {
+              final String subject = Uri.encodeComponent("CEM Inquiry: ${item.title}");
+              
+              // The generic, complete, but easily modifiable template
+              final String body = Uri.encodeComponent(
+                "Hi,\n\n"
+                "I am interested in your listing for the '${item.title}' (listed at ${item.priceText}) on the CEM app.\n\n"
+                "I would like to check it out. Please let me know your availability and a convenient place to meet on campus.\n\n"
+                "Thanks!"
+              );
+
+              // Fallback to the demo email if the seller ID isn't an email yet
+              final String sellerEmail = "cemiitjtest@gmail.com"; 
+
+              final Uri emailUri = Uri.parse("mailto:$sellerEmail?subject=$subject&body=$body");
+              
+              if (await canLaunchUrl(emailUri)) {
+                await launchUrl(emailUri);
+              } else {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Could not open email client."), backgroundColor: Colors.redAccent)
+                  );
+                }
+              }
+            }, // Email Logic to be added later
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFF8C00),
               padding: const EdgeInsets.symmetric(vertical: 20),
