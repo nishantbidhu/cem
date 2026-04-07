@@ -17,6 +17,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
   
   String? _selectedHostel;
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -39,6 +40,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
           setState(() {
             _selectedHostel = data?['hostel'] ?? AppConstants.hostels.first;
             _phoneController.text = data?['phone'] ?? '';
+            _nameController.text = data?['name'] ?? '';
           });
         } else {
           // If the user document doesn't exist yet (old accounts)
@@ -63,6 +65,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
 
     try {
       await FirebaseFirestore.instance.collection('users').doc(currentUser!.uid).update({
+        'name': _nameController.text.trim(),
         'hostel': _selectedHostel,
         'phone': _phoneController.text.trim(),
       });
@@ -104,6 +107,9 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
               children: [
                 _buildLockedIdentityCard(),
                 const SizedBox(height: 30),
+                _buildSectionLabel("FULL NAME"),
+                _buildGlassTextField(Icons.person, _nameController, "Your Name"),
+                const SizedBox(height: 20),
                 _buildSectionLabel("CURRENT HOSTEL"),
                 _buildHostelDropdown(),
                 const SizedBox(height: 20),
@@ -173,14 +179,19 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     );
   }
 
-  Widget _buildGlassTextField(IconData icon, TextEditingController controller) {
+  Widget _buildGlassTextField(IconData icon, TextEditingController controller, [String hint = "+91 00000 00000"]) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white10)),
       child: TextField(
         controller: controller,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        decoration: InputDecoration(icon: Icon(icon, color: const Color(0xFFFFB74D), size: 18), border: InputBorder.none, hintText: "+91 00000 00000", hintStyle: const TextStyle(color: Colors.white24)),
+        decoration: InputDecoration(
+          icon: Icon(icon, color: const Color(0xFFFFB74D), size: 18), 
+          border: InputBorder.none, 
+          hintText: hint, // <-- NOW USES THE DYNAMIC HINT
+          hintStyle: const TextStyle(color: Colors.white24)
+        ),
       ),
     );
   }

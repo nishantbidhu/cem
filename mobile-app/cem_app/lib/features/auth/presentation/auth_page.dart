@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_constants.dart'; // DRY Principle for Hostels
 import '../data/auth_service.dart';
+import '../../../core/cem_logo.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -23,6 +24,8 @@ class _AuthPageState extends State<AuthPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   // Controllers for Sign Up
+  final TextEditingController _signUpNameController = TextEditingController();
+  final TextEditingController _signUpPhoneController = TextEditingController();
   final TextEditingController _signUpEmailController = TextEditingController();
   final TextEditingController _signUpPasswordController = TextEditingController();
 
@@ -32,6 +35,8 @@ class _AuthPageState extends State<AuthPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _signUpNameController.dispose();
+    _signUpPhoneController.dispose();
     _signUpEmailController.dispose();
     _signUpPasswordController.dispose();
     _pageController.dispose();
@@ -55,11 +60,28 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   // --- REAL SIGN UP & FIRESTORE LOGIC ---
+  // --- REAL SIGN UP & FIRESTORE LOGIC ---
   Future<void> _handleSignUp() async {
+    // Check if name is empty
+    if (_signUpNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter your full name"), backgroundColor: Colors.redAccent));
+      return;
+    }
+
     if (_selectedHostel == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a hostel"), backgroundColor: Colors.redAccent));
       return;
     }
+
+
+    final String emailInput = _signUpEmailController.text.trim().toLowerCase();
+    if (!emailInput.endsWith('@iitj.ac.in') && emailInput != 'cemiitjtest@gmail.com') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Access restricted to @iitj.ac.in emails only"), backgroundColor: Colors.redAccent)
+      );
+      return;
+    }
+
 
     setState(() => _isLoading = true);
     try {
@@ -72,9 +94,10 @@ class _AuthPageState extends State<AuthPage> {
       // 2. Create the Firestore User Document
       if (userCredential.user != null) {
         await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+          'name': _signUpNameController.text.trim(), // <-- ADDED NAME HERE
           'email': userCredential.user!.email,
           'hostel': _selectedHostel,
-          'phone': '+91 00000 00000', // Default placeholder to be updated in Profile
+          'phone': _signUpPhoneController.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
           'role': 'student',
         });
@@ -110,11 +133,7 @@ class _AuthPageState extends State<AuthPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: const Color(0xFFFF8C00), borderRadius: BorderRadius.circular(25)),
-              child: const Icon(Icons.bolt, color: Colors.white, size: 50),
-            ),
+            const CemLogo(size: 100),
             const SizedBox(height: 20),
             RichText(text: const TextSpan(style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white), children: [TextSpan(text: "CEM"), TextSpan(text: ".", style: TextStyle(color: Color(0xFFFFB74D))), TextSpan(text: "IITJ")])),
             const Text("Exchange. Reuse. Connect.", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w500)),
@@ -123,11 +142,25 @@ class _AuthPageState extends State<AuthPage> {
             const SizedBox(height: 20),
             _buildInputCard(title: "PASSWORD", hint: "••••••••", icon: Icons.lock, isPassword: true, controller: _passwordController),
             const SizedBox(height: 30),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () async {
+                  if (_emailController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Enter your email first to reset password"), backgroundColor: Colors.orange));
+                    return;
+                  }
+                  try {
+                    await FirebaseAuth.instance.sendPasswordResetEmail(email: _emailController.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Password reset link sent! Check your inbox."), backgroundColor: Colors.green));
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent));
+                  }
+                },
+                child: const Text("Forgot Password?", style: TextStyle(color: Color(0xFFFFB74D), fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ),
             _buildPrimaryButton("SIGN IN", onTap: _handleSignIn, isLoading: _isLoading),
-            const SizedBox(height: 20),
-            const Text("OR", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _buildGoogleButton(),
             const SizedBox(height: 40),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -159,6 +192,10 @@ class _AuthPageState extends State<AuthPage> {
             const Text("Join CEM", style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white)),
             const Text("Create your IITJ Marketplace identity.", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
             const SizedBox(height: 40),
+            _buildInputCard(title: "FULL NAME", hint: "Your Name", icon: Icons.person, controller: _signUpNameController),
+            const SizedBox(height: 20),
+            _buildInputCard(title: "PHONE NUMBER", hint: "+91 99999 99999", icon: Icons.phone, controller: _signUpPhoneController),
+            const SizedBox(height: 20),
             _buildInputCard(title: "IITJ EMAIL", hint: "roll_no@iitj.ac.in", icon: Icons.email, controller: _signUpEmailController),
             const SizedBox(height: 20),
             const Text("HOSTEL", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold)),
@@ -222,48 +259,5 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  Widget _buildGoogleButton() {
-    return GestureDetector(
-      onTap: () async {
-        setState(() => _isLoading = true);
-        try {
-          // Call the Google Sign In method from your AuthService
-          final credential = await AuthService().signInWithGoogle();
-          
-          if (credential != null && credential.user != null) {
-            // Check if this is a first-time user so we can create their Firestore document
-            final userDoc = await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).get();
-            
-            if (!userDoc.exists) {
-              await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
-                'email': credential.user!.email,
-                'name': credential.user!.displayName ?? 'Student', // <--- ADDED THIS LINE
-                'hostel': 'Not Set', 
-                'phone': '',
-                'createdAt': FieldValue.serverTimestamp(),
-                'role': 'student',
-              });
-            }
-            
-            if (mounted) Navigator.pushReplacementNamed(context, '/home');
-          } else {
-             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Google Sign In Canceled"), backgroundColor: Colors.orange));
-          }
-        } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Google Sign In Failed: $e"), backgroundColor: Colors.redAccent));
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
-        }
-      },
-      child: Container(
-        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png', height: 20),
-            const SizedBox(width: 10),
-            const Text("Continue with Google", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        ]),
-      ),
-    );
-  }
+  
 }

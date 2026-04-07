@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/listing_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/listing_model.dart';
 
 class CreationFormScreen extends StatefulWidget {
@@ -52,7 +53,6 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
     
-    // Check for real Auth UID instead of temp string
     final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
     if (currentUid == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: User not logged in")));
@@ -62,6 +62,20 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // --- NEW: FETCH THE SELLER'S ACTUAL HOSTEL FROM FIRESTORE ---
+      String userHostel = "IITJ Campus"; 
+      if (widget.existingListing == null) { 
+        // If it's a new post, fetch their current hostel
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
+        if (userDoc.exists) {
+          userHostel = (userDoc.data() as Map<String, dynamic>?)?['hostel'] ?? "IITJ Campus";
+        }
+      } else {
+        // If editing an old post, keep the existing location
+        userHostel = widget.existingListing!.location; 
+      }
+      // ------------------------------------------------------------
+
       String finalPriceText = widget.isSalePost ? "₹${_priceController.text}" : "Budget: ₹${_priceController.text}";
 
       final newListing = Listing(
@@ -69,7 +83,7 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
         title: _titleController.text.trim(),
         priceText: finalPriceText,
         category: _selectedCategory,
-        location: widget.existingListing?.location ?? "IITJ Campus", 
+        location: userHostel, // <-- NOW INJECTS THE REAL HOSTEL
         condition: _selectedCondition,
         description: "${_detailsController.text.trim()}\nCondition: $_selectedCondition",
         isSeeking: !widget.isSalePost,
@@ -154,6 +168,7 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
               controller: controller,
               keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : (isMultiline ? TextInputType.multiline : TextInputType.text),
               maxLines: isMultiline ? 3 : 1,
+              maxLength: label.toLowerCase() == "title" ? 40 : null,
               style: const TextStyle(color: Colors.white),
               validator: isRequired ? (v) => (v == null || v.isEmpty) ? 'Required' : null : null,
               decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)), border: InputBorder.none),
