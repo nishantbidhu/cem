@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 import '../domain/listing_model.dart';
-
 
 class ListingDetailScreen extends StatelessWidget {
   final Listing item;
@@ -63,6 +64,7 @@ class ListingDetailScreen extends StatelessWidget {
                 onPressed: () async {
                   final String subject = Uri.encodeComponent("Report: Listing ${item.id}");
                   final String body = Uri.encodeComponent("Listing Title: ${item.title}\nReport Reason: $selectedReason\nDetails: ${detailsController.text}");
+                  // Reports always go to the Admin email
                   final Uri emailUri = Uri.parse("mailto:cemiitjtest@gmail.com?subject=$subject&body=$body");
                   
                   if (await canLaunchUrl(emailUri)) {
@@ -82,69 +84,107 @@ class ListingDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1128), // Navy Deep
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // --- 1. IMAGE PLACEHOLDER SECTION ---
-                _buildHeroImage(),
+      backgroundColor: const Color(0xFF0A1128),
+      // --- WRAPPED THE ENTIRE SCREEN IN A FUTUREBUILDER TO FETCH SELLER DATA ---
+      body: FutureBuilder<DocumentSnapshot>(
+        future: FirebaseFirestore.instance.collection('users').doc(item.sellerId).get(),
+        builder: (context, snapshot) {
+          
+          // Extract the data safely if it exists
+          Map<String, dynamic>? sellerData;
+          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.exists) {
+            sellerData = snapshot.data!.data() as Map<String, dynamic>?;
+          }
 
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // --- PRICE & TITLE ---
-                      Text(item.priceText, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFFFFB74D))),
-                      Text(item.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-                      
-                      const SizedBox(height: 25),
+          // Determine the final values to show
+          final String sellerEmail = sellerData?['email'] ?? "cemiitjtest@gmail.com";
+          final String sellerHostel = sellerData?['hostel'] ?? item.location;
 
-                      // --- 2. SELLER IDENTITY CARD ---
-                      _buildSellerCard(),
+          return Stack(
+            children: [
+              SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeroImage(),
 
-                      const SizedBox(height: 25),
-
-                      // --- 3. DATA GRID (Condition, Age, Hostel, Category) ---
-                      _buildDataGrid(),
-
-                      const SizedBox(height: 30),
-
-                      // --- DESCRIPTION & REPORT ---
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("DESCRIPTION", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1)),
-                          _buildReportButton(context),
+                          Text(item.priceText, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFFFFB74D))),
+                          Text(item.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                          
+                          const SizedBox(height: 25),
+
+                          // --- DYNAMIC SELLER CARD ---
+                          _buildSellerCard(sellerData),
+
+                          const SizedBox(height: 25),
+
+                          // --- DYNAMIC DATA GRID ---
+                          _buildDataGrid(sellerHostel),
+
+                          const SizedBox(height: 30),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("DESCRIPTION", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1)),
+                              Row(
+                                children: [
+                                  // --- NEW ADMIN DELETE BUTTON ---
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                                      if (uid == null) return;
+                                      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+                                      if (userDoc.data()?['role'] == 'admin') {
+                                        await FirebaseFirestore.instance.collection('listings').doc(item.id).delete();
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Post deleted by Admin"), backgroundColor: Colors.red));
+                                          Navigator.pop(context);
+                                        }
+                                      } else {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Admin privileges required")));
+                                        }
+                                      }
+                                    },
+                                    child: const Icon(Icons.delete_forever, color: Colors.redAccent, size: 20),
+                                  ),
+                                  const SizedBox(width: 15),
+                              _buildReportButton(context),
+                            ],
+                          ),
+                        ], // <-- CLOSES THE OUTER ROW'S CHILDREN
+                      ),
+                          const SizedBox(height: 12),
+                          Text(item.description, 
+                            style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), height: 1.5)),
+
+                          const SizedBox(height: 120),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(item.description, 
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), height: 1.5)),
-
-                      const SizedBox(height: 120), // Bottom padding for FAB
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
 
-          // Back Button Overlay
-          Positioned(
-            top: 50, left: 20,
-            child: _buildBackButton(context),
-          ),
+              Positioned(
+                top: 50, left: 20,
+                child: _buildBackButton(context),
+              ),
 
-          // --- 4. BOTTOM ACTION BAR ---
-          Positioned(
-            bottom: 30, left: 24, right: 24,
-            child: _buildInterestBar(context),
-          ),
-        ],
+              // --- PASSING THE REAL SELLER EMAIL TO THE ACTION BAR ---
+              Positioned(
+                bottom: 30, left: 24, right: 24,
+                child: _buildInterestBar(context, sellerEmail), 
+              ),
+            ],
+          );
+        }
       ),
     );
   }
@@ -162,7 +202,14 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSellerCard() {
+  // --- REWRITTEN TO USE DYNAMIC SELLER DATA ---
+  Widget _buildSellerCard(Map<String, dynamic>? sellerData) {
+    // Fallback values if data is still loading or missing
+    final String sellerName = sellerData?['name'] ?? 'Loading...';
+    final String sellerEmail = sellerData?['email'] ?? 'Loading...';
+    final String sellerPhone = sellerData?['phone'] ?? 'Loading...';
+    final String initial = (sellerName != 'Loading...' && sellerName.isNotEmpty) ? sellerName[0].toUpperCase() : 'U';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -178,16 +225,16 @@ class ListingDetailScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFFFB74D), width: 1.5),
             ),
-            child: const Center(child: Text("U", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFFFB74D)))),
+            child: Center(child: Text(initial, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFFFB74D)))),
           ),
           const SizedBox(width: 15),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("User Name", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                Text("user.1@iitj.ac.in", style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
-                Text("+91 91101 XXXXX", style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                Text(sellerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                Text(sellerEmail, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                Text(sellerPhone, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
@@ -197,7 +244,8 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDataGrid() {
+  // --- UPDATED GRID (Replaced AGE with TYPE, uses dynamic Hostel) ---
+  Widget _buildDataGrid(String sellerHostel) {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -207,8 +255,8 @@ class ListingDetailScreen extends StatelessWidget {
       childAspectRatio: 2.2,
       children: [
         _buildInfoTile("CONDITION", item.condition),
-        _buildInfoTile("AGE", "1.5 Years"), // Placeholder for now
-        _buildInfoTile("HOSTEL", item.location),
+        _buildInfoTile("TYPE", item.isSeeking ? "Request" : "Purchase"), // <-- SWAPPED OUT AGE
+        _buildInfoTile("HOSTEL", sellerHostel), // <-- DYNAMIC HOSTEL
         _buildInfoTile("CATEGORY", item.category),
       ],
     );
@@ -234,7 +282,8 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInterestBar(BuildContext context) {
+  // --- NOW TAKES THE DYNAMIC SELLER EMAIL AS A PARAMETER ---
+  Widget _buildInterestBar(BuildContext context, String sellerEmail) {
     return Row(
       children: [
         Expanded(
@@ -242,7 +291,6 @@ class ListingDetailScreen extends StatelessWidget {
             onPressed: () async {
               final String subject = Uri.encodeComponent("CEM Inquiry: ${item.title}");
               
-              // The generic, complete, but easily modifiable template
               final String body = Uri.encodeComponent(
                 "Hi,\n\n"
                 "I am interested in your listing for the '${item.title}' (listed at ${item.priceText}) on the CEM app.\n\n"
@@ -250,9 +298,7 @@ class ListingDetailScreen extends StatelessWidget {
                 "Thanks!"
               );
 
-              // Fallback to the demo email if the seller ID isn't an email yet
-              final String sellerEmail = "cemiitjtest@gmail.com"; 
-
+              // Uses the actual seller's email now!
               final Uri emailUri = Uri.parse("mailto:$sellerEmail?subject=$subject&body=$body");
               
               if (await canLaunchUrl(emailUri)) {
@@ -264,7 +310,7 @@ class ListingDetailScreen extends StatelessWidget {
                   );
                 }
               }
-            }, // Email Logic to be added later
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFF8C00),
               padding: const EdgeInsets.symmetric(vertical: 20),
