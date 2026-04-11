@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/listing_service.dart';
@@ -31,29 +29,40 @@ class _ListingScreenState extends State<ListingScreen> {
         _buildSearchBar(),
         _buildCategories(),
         Expanded(
-          child: StreamBuilder<List<Listing>>(
-            stream: service.getSaleListings(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFFFFB74D)));
-              
-              // APPLY ACTIVE FILTERS TO THE REAL-TIME STREAM
-              final listings = snapshot.data!.where((item) {
-                final matchesCategory = _selectedCategory == 'All' || item.category == _selectedCategory;
-                final matchesSearch = item.title.toLowerCase().contains(_searchQuery.toLowerCase());
-                return matchesCategory && matchesSearch;
-              }).toList();
-
-              if (listings.isEmpty) {
-                return const Center(child: Text("No items match your search.", style: TextStyle(color: Color(0xFF94A3B8))));
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(20),
-                itemCount: listings.length,
-                itemBuilder: (context, index) => _buildListingCard(context, listings[index]),
-              );
+          child: RefreshIndicator(
+            color: const Color(0xFFFFB74D),
+            backgroundColor: const Color(0xFF0F172A),
+            onRefresh: () async {
+              setState(() {}); // Triggers the FutureBuilder to run again
             },
+            child: FutureBuilder<List<Listing>>(
+              future: service.getSaleListingsFuture(), // USING THE FUTURE NOW
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFFFFB74D)));
+                
+                final listings = snapshot.data!.where((item) {
+                  final matchesCategory = _selectedCategory == 'All' || item.category == _selectedCategory;
+                  final matchesSearch = item.title.toLowerCase().contains(_searchQuery.toLowerCase());
+                  return matchesCategory && matchesSearch;
+                }).toList();
+
+                if (listings.isEmpty) {
+                  return ListView( // Needs to be scrollable for RefreshIndicator to work
+                    children: const [
+                      SizedBox(height: 200),
+                      Center(child: Text("No items match your search.", style: TextStyle(color: Color(0xFF94A3B8)))),
+                    ]
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: listings.length,
+                  itemBuilder: (context, index) => _buildListingCard(context, listings[index]),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -97,7 +106,7 @@ class _ListingScreenState extends State<ListingScreen> {
     );
   }
 
-  // --- Helpers for UI (Handshake logic remains untouched) ---
+  // --- UPDATED Helpers for UI (Handshake logic fixed with FLOATING SnackBars) ---
   void _showVerificationSheet(BuildContext context) {
     final TextEditingController codeController = TextEditingController();
     showModalBottomSheet(
@@ -113,13 +122,48 @@ class _ListingScreenState extends State<ListingScreen> {
           const SizedBox(height: 25),
           Container(padding: const EdgeInsets.symmetric(horizontal: 18), decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(16)), child: TextField(controller: codeController, textAlign: TextAlign.center, keyboardType: TextInputType.number, maxLength: 6, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8, color: Color(0xFFFFB74D)), decoration: const InputDecoration(counterText: "", border: InputBorder.none, hintText: "000000"))),
           const SizedBox(height: 30),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () async {
-            String? buyerId = FirebaseAuth.instance.currentUser?.uid;
-            if (buyerId != null) {
-              bool success = await service.completeTransactionByCode(codeController.text, buyerId);
-              if (context.mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "Verified!" : "Error"), backgroundColor: success ? Colors.green : Colors.redAccent)); }
-            }
-          }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8C00), padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))), child: const Text("CONFIRM PURCHASE", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white)))),
+          SizedBox(
+            width: double.infinity, 
+            child: ElevatedButton(
+              onPressed: () async {
+                String? buyerId = FirebaseAuth.instance.currentUser?.uid;
+                if (buyerId != null) {
+                  // Hide keyboard so SnackBar is clearly visible
+                  FocusScope.of(context).unfocus(); 
+                  
+                  bool success = await service.completeTransactionByCode(codeController.text, buyerId);
+                  
+                  if (context.mounted) { 
+                    if (success) {
+                      Navigator.pop(context); // Close the sheet ONLY on success
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Purchase Verified! Item marked as Sold.", style: TextStyle(color: Colors.white)), 
+                          backgroundColor: Colors.green,
+                          behavior: SnackBarBehavior.floating,
+                          margin: EdgeInsets.only(bottom: 90, left: 20, right: 20),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                        )
+                      ); 
+                    } else {
+                      // Keep sheet open and show polite floating error message
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Incorrect 6-digit code. Please verify with the seller.", style: TextStyle(color: Colors.white)), 
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                          margin: EdgeInsets.only(bottom: 90, left: 20, right: 20),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                        )
+                      );
+                    }
+                  }
+                }
+              }, 
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8C00), padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))), 
+              child: const Text("CONFIRM PURCHASE", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white))
+            )
+          ),
           const SizedBox(height: 40),
         ]),
       ),

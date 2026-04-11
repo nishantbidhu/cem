@@ -1,10 +1,6 @@
-
-
-
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'; // ADDED for debugPrint
 import 'dart:math';
 import '../domain/listing_model.dart';
 
@@ -42,6 +38,18 @@ class ListingService {
         }).toList());
   }
 
+  // --- READ: FUTURE (One-time fetch for pull-to-refresh) ---
+  Future<List<Listing>> getSaleListingsFuture() async {
+    final snapshot = await _listings
+        .where('isSeeking', isEqualTo: false)
+        .where('status', isEqualTo: 'available')
+        .get(); // .get() instead of .snapshots()
+        
+    return snapshot.docs.map((doc) {
+      return Listing.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }).toList();
+  }
+
   Stream<List<Listing>> getSeekListings() {
     return _listings
         .where('isSeeking', isEqualTo: true)
@@ -68,7 +76,8 @@ class ListingService {
     try {
       await _listings.doc(documentId).delete();
     } catch (e) {
-      print("Error deleting listing: $e");
+      // FIXED: Using debugPrint for clean production builds
+      debugPrint("Error deleting listing: $e"); 
     }
   }
 
@@ -111,8 +120,9 @@ class ListingService {
         });
         return true;
       }
-      return false; 
+      return false; // Code not found or item not available
     } catch (e) {
+      debugPrint("Handshake Error: $e"); // Added debugPrint here too!
       return false;
     }
   }
