@@ -45,35 +45,68 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A1128),
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // YOUR NEW CUSTOM LOGO
-              const CemLogo(size: 150), 
-              
-              const SizedBox(height: 30),
-              
-              RichText(
-                text: const TextSpan(
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1),
-                  children: [
-                    TextSpan(text: "CEM"),
-                    TextSpan(text: ".", style: TextStyle(color: Color(0xFFFFB74D))),
-                    TextSpan(text: "IITJ"),
-                  ],
-                ),
+      body: Stack(
+        children: [
+          // --- MAIN CENTERED CONTENT ---
+          Center(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Column(
+                mainAxisSize: MainAxisSize.min, // Keeps the column tight in the center
+                children: [
+                  const CemLogo(size: 150), 
+                  
+                  const SizedBox(height: 30),
+                  
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1),
+                      children: [
+                        TextSpan(text: "CEM"),
+                        TextSpan(text: ".", style: TextStyle(color: Color(0xFFFFB74D))),
+                        TextSpan(text: "IITJ"),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Exchange. Reuse. Connect.",
+                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                "Exchange. Reuse. Connect.",
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-            ],
+            ),
           ),
-        ),
+
+          // --- BOTTOM BRANDING ---
+          Positioned(
+            bottom: 40, // Adjust this to move it higher or lower
+            left: 0,
+            right: 0,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Column(
+                children: [
+                  const Text(
+                    "made by IIT Jodhpur",
+                    style: TextStyle(
+                      color: Color(0xFF94A3B8), 
+                      fontSize: 12, 
+                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Using the exact filename from your screenshot
+                  Image.asset(
+                    'assets/iit_logo.png', 
+                    height: 45, // Keeps the IIT logo appropriately sized
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

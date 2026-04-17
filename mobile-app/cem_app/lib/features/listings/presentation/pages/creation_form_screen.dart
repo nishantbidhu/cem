@@ -1,8 +1,9 @@
-
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../data/listing_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/listing_model.dart';
@@ -31,6 +32,10 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
   final List<String> _categories = ['Bicycles', 'Tech/Electronics', 'Books/Notes', 'Lab Gear', 'Others'];
   final List<String> _conditions = ['New', 'Like New', 'Used - Good', 'Used - Fair'];
 
+  // --- NEW: IMAGE STATE VARIABLES ---
+  File? _selectedImage;
+  String? _existingImageUrl;
+
   @override
   void initState() {
     super.initState();
@@ -38,7 +43,6 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
       _titleController.text = widget.existingListing!.title;
       _priceController.text = widget.existingListing!.priceText.replaceAll(RegExp(r'[^0-9.]'), '');
       
-      // Clean up the description string by removing the auto-appended condition
       String oldDesc = widget.existingListing!.description;
       if (oldDesc.contains('\nCondition:')) {
         oldDesc = oldDesc.split('\nCondition:')[0];
@@ -47,6 +51,41 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
       
       _selectedCategory = widget.existingListing!.category;
       _selectedCondition = widget.existingListing!.condition;
+      _existingImageUrl = widget.existingListing!.imageUrl; // Load existing image if editing
+    }
+  }
+
+  // --- NEW: COMPRESSION & UPLOAD LOGIC ---
+  Future<void> _pickAndCompressImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 60, // Reduces file size by 40% natively
+      maxWidth: 800,    // Prevents massive images from eating storage
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+        _existingImageUrl = null; // Clear old URL if they pick a new photo
+      });
+    }
+  }
+
+  Future<String?> _uploadImageToStorage(String listingId) async {
+    if (_selectedImage == null) return _existingImageUrl; // Return old URL if no new image picked
+    
+    try {
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('listing_images')
+          .child('$listingId.jpg');
+
+      await storageRef.putFile(_selectedImage!);
+      return await storageRef.getDownloadURL(); 
+    } catch (e) {
+      debugPrint("Image upload failed: $e");
+      return null;
     }
   }
 
@@ -62,33 +101,33 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // --- NEW: FETCH THE SELLER'S ACTUAL HOSTEL FROM FIRESTORE ---
       String userHostel = "IITJ Campus"; 
       if (widget.existingListing == null) { 
-        // If it's a new post, fetch their current hostel
         DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
         if (userDoc.exists) {
           userHostel = (userDoc.data() as Map<String, dynamic>?)?['hostel'] ?? "IITJ Campus";
         }
       } else {
-        // If editing an old post, keep the existing location
         userHostel = widget.existingListing!.location; 
       }
-      // ------------------------------------------------------------
 
       String finalPriceText = widget.isSalePost ? "₹${_priceController.text}" : "Budget: ₹${_priceController.text}";
+      String generatedId = widget.existingListing?.id ?? const Uuid().v4();
+
+      // --- NEW: TRIGGER IMAGE UPLOAD ---
+      String? finalImageUrl = await _uploadImageToStorage(generatedId);
 
       final newListing = Listing(
-        id: widget.existingListing?.id ?? const Uuid().v4(),
+        id: generatedId,
         title: _titleController.text.trim(),
         priceText: finalPriceText,
         category: _selectedCategory,
-        location: userHostel, // <-- NOW INJECTS THE REAL HOSTEL
+        location: userHostel, 
         condition: _selectedCondition,
         description: "${_detailsController.text.trim()}\nCondition: $_selectedCondition",
         isSeeking: !widget.isSalePost,
         sellerId: currentUid, 
-        imageUrl: widget.existingListing?.imageUrl, 
+        imageUrl: finalImageUrl, // <-- ATTACH THE FIREBASE STORAGE URL HERE
         transactionCode: widget.existingListing?.transactionCode,
         boughtBy: widget.existingListing?.boughtBy,
       );
@@ -128,6 +167,10 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // --- NEW: IMAGE PICKER UI ---
+              _buildImagePicker(),
+              const SizedBox(height: 18),
+
               _buildTextField("Title", "e.g. Atlas Cycle", _titleController, isRequired: true),
               _buildDropdownField("Category", _categories, _selectedCategory, (val) => setState(() => _selectedCategory = val!)),
               _buildTextField(widget.isSalePost ? "Price (₹)" : "Max Budget (₹)", "0.00", _priceController, isNumber: true, isRequired: true),
@@ -151,6 +194,40 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // --- NEW: IMAGE PICKER UI WIDGET ---
+  Widget _buildImagePicker() {
+    return GestureDetector(
+      onTap: _pickAndCompressImage,
+      child: Container(
+        height: 150,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: _selectedImage != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.file(_selectedImage!, fit: BoxFit.cover),
+              )
+            : _existingImageUrl != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Image.network(_existingImageUrl!, fit: BoxFit.cover),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.add_a_photo, color: Color(0xFFFFB74D), size: 40),
+                      SizedBox(height: 10),
+                      Text("Tap to add a photo", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                    ],
+                  ),
       ),
     );
   }

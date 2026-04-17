@@ -126,4 +126,35 @@ class ListingService {
       return false;
     }
   }
+
+  // --- NEW: LAZY SELF-CLEANUP (7 DAYS) ---
+  Future<List<String>> cleanupExpiredListings() async {
+    String? userId = _auth.currentUser?.uid;
+    if (userId == null) return [];
+
+    List<String> deletedTitles = [];
+    
+    try {
+      // Calculate the exact time 7 days ago
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      
+      // Find the user's active listings that are older than 7 days
+      final snapshot = await _listings
+          .where('sellerId', isEqualTo: userId)
+          .where('status', isEqualTo: 'available')
+          .where('createdAt', isLessThan: Timestamp.fromDate(sevenDaysAgo))
+          .get();
+
+      // Delete them and save the titles to notify the user
+      for (var doc in snapshot.docs) {
+        deletedTitles.add(doc['title'] ?? 'Item');
+        await doc.reference.delete();
+      }
+      
+      return deletedTitles;
+    } catch (e) {
+      debugPrint("Cleanup error: $e");
+      return [];
+    }
+  }
 }

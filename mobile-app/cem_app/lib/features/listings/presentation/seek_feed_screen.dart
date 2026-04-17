@@ -1,13 +1,9 @@
-
-
-
-
-
 import 'package:flutter/material.dart';
 import '../data/listing_service.dart';
 import '../domain/listing_model.dart';
 import 'listing_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'notifications_popup.dart'; // --- NEW: Added import ---
 
 class SeekFeedScreen extends StatelessWidget {
   const SeekFeedScreen({super.key});
@@ -124,7 +120,13 @@ class SeekFeedScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           RichText(text: const TextSpan(style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white), children: [TextSpan(text: "SEEK"), TextSpan(text: "."), TextSpan(text: "FEED", style: TextStyle(color: Color(0xFFFFB74D)))])),
-          Row(children: [_buildActionBtn(Icons.qr_code_scanner, onTap: () => _showVerificationSheet(context, service)), _buildActionBtn(Icons.notifications)]),
+          Row(
+            children: [
+              _buildActionBtn(Icons.qr_code_scanner, onTap: () => _showVerificationSheet(context, service)), 
+              // --- UPDATED: Added onTap functionality ---
+              _buildActionBtn(Icons.notifications, onTap: () => showNotificationsPopup(context))
+            ]
+          ),
         ],
       ),
     );
