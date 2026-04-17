@@ -21,6 +21,42 @@ class _ListingScreenState extends State<ListingScreen> {
   String _selectedCategory = 'All';
   final List<String> _categories = ["All", "Bicycles", "Tech/Electronics", "Books/Notes", "Lab Gear", "Others"];
 
+  // --- NEW: TRIGGER THE WEEKLY CLEANUP WHEN SCREEN LOADS ---
+  @override
+  void initState() {
+    super.initState();
+    _runWeeklyCleanup();
+  }
+
+  Future<void> _runWeeklyCleanup() async {
+    // Runs the check silently in the background
+    List<String> deletedItems = await service.cleanupExpiredListings();
+    
+    // If it deleted anything, show the alert box
+    if (deletedItems.isNotEmpty && mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1A212E),
+          title: const Text("Posts Expired ⏳", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text(
+            "To keep the marketplace clean, posts are automatically removed after 1 week.\n\n"
+            "The following posts were deleted:\n• ${deletedItems.join('\n• ')}\n\n"
+            "You may list them again if they are still available!",
+            style: const TextStyle(color: Color(0xFF94A3B8)),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8C00)),
+              onPressed: () => Navigator.pop(context),
+              child: const Text("UNDERSTOOD", style: TextStyle(color: Colors.white)),
+            )
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -76,7 +112,7 @@ class _ListingScreenState extends State<ListingScreen> {
         height: 50, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
         child: Center(
           child: TextField(
-            onChanged: (value) => setState(() => _searchQuery = value), // UPDATES STATE
+            onChanged: (value) => setState(() => _searchQuery = value), 
             textAlignVertical: TextAlignVertical.center, 
             style: const TextStyle(color: Colors.white, fontSize: 14), 
             decoration: const InputDecoration(hintText: "Search gear...", hintStyle: TextStyle(color: Color(0xFF94A3B8)), border: InputBorder.none, prefixIcon: Icon(Icons.search, color: Color(0xFF94A3B8), size: 20))
@@ -94,7 +130,7 @@ class _ListingScreenState extends State<ListingScreen> {
         itemBuilder: (context, i) {
           final isSelected = _categories[i] == _selectedCategory;
           return GestureDetector(
-            onTap: () => setState(() => _selectedCategory = _categories[i]), // UPDATES STATE
+            onTap: () => setState(() => _selectedCategory = _categories[i]), 
             child: Container(
               margin: const EdgeInsets.only(right: 10), padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(color: isSelected ? const Color(0xFFFFB74D) : Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: isSelected ? Colors.transparent : Colors.white10)),
@@ -106,7 +142,6 @@ class _ListingScreenState extends State<ListingScreen> {
     );
   }
 
-  // --- UPDATED Helpers for UI (Handshake logic fixed with FLOATING SnackBars) ---
   void _showVerificationSheet(BuildContext context) {
     final TextEditingController codeController = TextEditingController();
     showModalBottomSheet(
@@ -128,14 +163,13 @@ class _ListingScreenState extends State<ListingScreen> {
               onPressed: () async {
                 String? buyerId = FirebaseAuth.instance.currentUser?.uid;
                 if (buyerId != null) {
-                  // Hide keyboard so SnackBar is clearly visible
                   FocusScope.of(context).unfocus(); 
                   
                   bool success = await service.completeTransactionByCode(codeController.text, buyerId);
                   
                   if (context.mounted) { 
                     if (success) {
-                      Navigator.pop(context); // Close the sheet ONLY on success
+                      Navigator.pop(context); 
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Purchase Verified! Item marked as Sold.", style: TextStyle(color: Colors.white)), 
@@ -146,7 +180,6 @@ class _ListingScreenState extends State<ListingScreen> {
                         )
                       ); 
                     } else {
-                      // Keep sheet open and show polite floating error message
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Incorrect 6-digit code. Please verify with the seller.", style: TextStyle(color: Colors.white)), 
@@ -180,7 +213,6 @@ class _ListingScreenState extends State<ListingScreen> {
           Row(
             children: [
               _buildActionBtn(Icons.qr_code_scanner, onTap: () => _showVerificationSheet(context)), 
-              // --- NEW: WIRED UP THE BELL ICON ---
               _buildActionBtn(Icons.notifications, onTap: () => showNotificationsPopup(context)),
             ]
           ),
@@ -200,14 +232,50 @@ class _ListingScreenState extends State<ListingScreen> {
         height: 110, margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white10)),
         child: Row(children: [
-          Container(width: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), bottomLeft: Radius.circular(20))), child: Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, color: const Color(0xFFFFB74D), size: 28)),
-          Padding(
-            padding: const EdgeInsets.all(15.0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-              Text(item.priceText, style: const TextStyle(color: Color(0xFFFFB74D), fontSize: 19, fontWeight: FontWeight.w800)),
-              Text("${item.location} • ${item.condition}", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
-            ]),
+          Container(
+            width: 100, 
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.03), 
+              borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), bottomLeft: Radius.circular(20)),
+              image: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(item.imageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ), 
+            child: item.imageUrl == null || item.imageUrl!.isEmpty
+                ? Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, color: const Color(0xFFFFB74D), size: 28)
+                : null,
+          ),
+          
+          // --- FIX IS HERE: WRAPPED IN EXPANDED TO PREVENT OVERFLOW ---
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(15.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, 
+                mainAxisAlignment: MainAxisAlignment.center, 
+                children: [
+                  Text(
+                    item.title, 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis, 
+                  ),
+                  Text(
+                    item.priceText, 
+                    style: const TextStyle(color: Color(0xFFFFB74D), fontSize: 19, fontWeight: FontWeight.w800)
+                  ),
+                  Text(
+                    "${item.location} • ${item.condition}", 
+                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis, 
+                  ),
+                ]
+              ),
+            ),
           ),
         ]),
       ),

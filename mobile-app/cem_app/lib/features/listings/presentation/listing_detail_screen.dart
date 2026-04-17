@@ -1,9 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
 import '../domain/listing_model.dart';
+import 'package:flutter/services.dart';
 
 class ListingDetailScreen extends StatelessWidget {
   final Listing item;
@@ -63,16 +63,27 @@ class ListingDetailScreen extends StatelessWidget {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
-                  final String subject = Uri.encodeComponent("Report: Listing ${item.id}");
-                  final String body = Uri.encodeComponent("Listing Title: ${item.title}\nReport Reason: $selectedReason\nDetails: ${detailsController.text}");
-                  // Reports always go to the Admin email
-                  final Uri emailUri = Uri.parse("mailto:cemiitjtest@gmail.com?subject=$subject&body=$body");
-                  
-                  if (await canLaunchUrl(emailUri)) {
-                    await launchUrl(emailUri);
-                  }
-                  if (context.mounted) Navigator.pop(context);
-                },
+                // 1. Write the report to Firestore FIRST
+                await FirebaseFirestore.instance.collection('reports').add({
+                  'listingId': item.id,
+                  'listingTitle': item.title,
+                  'reason': selectedReason,
+                  'details': detailsController.text,
+                  'reportedAt': FieldValue.serverTimestamp(),
+                  'sellerId': item.sellerId,
+                  'status': 'pending', // Good for admin review tracking
+                });
+
+                // 2. Then trigger the email to the Admin
+                final String subject = Uri.encodeComponent("Report: Listing ${item.id}");
+                final String body = Uri.encodeComponent("Listing Title: ${item.title}\nReport Reason: $selectedReason\nDetails: ${detailsController.text}");
+                final Uri emailUri = Uri.parse("mailto:cemiitjtest@gmail.com?subject=$subject&body=$body");
+                
+                if (await canLaunchUrl(emailUri)) {
+                  await launchUrl(emailUri);
+                }
+                if (context.mounted) Navigator.pop(context);
+              },
                 child: const Text("SUBMIT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -86,18 +97,15 @@ class ListingDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A1128),
-      // --- WRAPPED THE ENTIRE SCREEN IN A FUTUREBUILDER TO FETCH SELLER DATA ---
       body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance.collection('users').doc(item.sellerId).get(),
         builder: (context, snapshot) {
           
-          // Extract the data safely if it exists
           Map<String, dynamic>? sellerData;
           if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.exists) {
             sellerData = snapshot.data!.data() as Map<String, dynamic>?;
           }
 
-          // Determine the final values to show
           final String sellerEmail = sellerData?['email'] ?? "cemiitjtest@gmail.com";
           final String sellerHostel = sellerData?['hostel'] ?? item.location;
 
@@ -107,6 +115,7 @@ class ListingDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // --- UPDATED: HERO IMAGE ---
                     _buildHeroImage(),
 
                     Padding(
@@ -119,12 +128,10 @@ class ListingDetailScreen extends StatelessWidget {
                           
                           const SizedBox(height: 25),
 
-                          // --- DYNAMIC SELLER CARD ---
                           _buildSellerCard(sellerData),
 
                           const SizedBox(height: 25),
 
-                          // --- DYNAMIC DATA GRID ---
                           _buildDataGrid(sellerHostel),
 
                           const SizedBox(height: 30),
@@ -135,7 +142,6 @@ class ListingDetailScreen extends StatelessWidget {
                               const Text("DESCRIPTION", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1)),
                               Row(
                                 children: [
-                                  // --- NEW ADMIN DELETE BUTTON ---
                                   GestureDetector(
                                     onTap: () async {
                                       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -156,11 +162,11 @@ class ListingDetailScreen extends StatelessWidget {
                                     child: const Icon(Icons.delete_forever, color: Colors.redAccent, size: 20),
                                   ),
                                   const SizedBox(width: 15),
-                              _buildReportButton(context),
-                            ],
+                                  _buildReportButton(context),
+                                ],
+                              ),
+                            ], 
                           ),
-                        ], // <-- CLOSES THE OUTER ROW'S CHILDREN
-                      ),
                           const SizedBox(height: 12),
                           Text(item.description, 
                             style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), height: 1.5)),
@@ -173,14 +179,15 @@ class ListingDetailScreen extends StatelessWidget {
                 ),
               ),
 
+              // --- UPDATED: MEDIA QUERY FIX FOR NOTCH ---
               Positioned(
-                top: 50, left: 20,
+                top: MediaQuery.of(context).padding.top + 10, left: 20,
                 child: _buildBackButton(context),
               ),
 
-              // --- PASSING THE REAL SELLER EMAIL TO THE ACTION BAR ---
+              // --- UPDATED: MEDIA QUERY FIX FOR BOTTOM SWIPE BAR ---
               Positioned(
-                bottom: 30, left: 24, right: 24,
+                bottom: MediaQuery.of(context).padding.bottom + 15, left: 24, right: 24,
                 child: _buildInterestBar(context, sellerEmail), 
               ),
             ],
@@ -190,22 +197,30 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
+  // --- REWRITTEN: HANDLES FIREBASE STORAGE IMAGES OR FALLBACK ICONS ---
   Widget _buildHeroImage() {
     return Container(
-      height: 350, width: double.infinity,
+      height: 350, 
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.03),
         borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+        image: item.imageUrl != null && item.imageUrl!.isNotEmpty
+            ? DecorationImage(
+                image: NetworkImage(item.imageUrl!),
+                fit: BoxFit.cover, // Ensures the photo elegantly fills the container
+              )
+            : null,
       ),
-      child: Center(
-        child: Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, size: 100, color: const Color(0xFFFFB74D).withOpacity(0.2)),
-      ),
+      child: item.imageUrl == null || item.imageUrl!.isEmpty
+          ? Center(
+              child: Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, size: 100, color: const Color(0xFFFFB74D).withOpacity(0.2)),
+            )
+          : null, // Don't show the icon if an image exists
     );
   }
 
-  // --- REWRITTEN TO USE DYNAMIC SELLER DATA ---
   Widget _buildSellerCard(Map<String, dynamic>? sellerData) {
-    // Fallback values if data is still loading or missing
     final String sellerName = sellerData?['name'] ?? 'Loading...';
     final String sellerEmail = sellerData?['email'] ?? 'Loading...';
     final String sellerPhone = sellerData?['phone'] ?? 'Loading...';
@@ -245,7 +260,6 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
-  // --- UPDATED GRID (Replaced AGE with TYPE, uses dynamic Hostel) ---
   Widget _buildDataGrid(String sellerHostel) {
     return GridView.count(
       shrinkWrap: true,
@@ -256,8 +270,8 @@ class ListingDetailScreen extends StatelessWidget {
       childAspectRatio: 2.2,
       children: [
         _buildInfoTile("CONDITION", item.condition),
-        _buildInfoTile("TYPE", item.isSeeking ? "Request" : "Purchase"), // <-- SWAPPED OUT AGE
-        _buildInfoTile("HOSTEL", sellerHostel), // <-- DYNAMIC HOSTEL
+        _buildInfoTile("TYPE", item.isSeeking ? "Request" : "Purchase"), 
+        _buildInfoTile("HOSTEL", sellerHostel), 
         _buildInfoTile("CATEGORY", item.category),
       ],
     );
@@ -283,55 +297,48 @@ class ListingDetailScreen extends StatelessWidget {
     );
   }
 
-  // --- NOW TAKES THE DYNAMIC SELLER EMAIL AS A PARAMETER ---
+  // --- UPDATED: REMOVED THE HEART/SAVE ICON COMPLETELY ---
   Widget _buildInterestBar(BuildContext context, String sellerEmail) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () async {
-              final String subject = Uri.encodeComponent("CEM Inquiry: ${item.title}");
-              
-              final String body = Uri.encodeComponent(
-                "Hi,\n\n"
-                "I am interested in your listing for the '${item.title}' (listed at ${item.priceText}) on the CEM app.\n\n"
-                "I would like to check it out. Please let me know your availability and a convenient place to meet on campus.\n\n"
-                "Thanks!"
-              );
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () async {
+          final String subject = Uri.encodeComponent("CEM Inquiry: ${item.title}");
+          
+          final String body = Uri.encodeComponent(
+            "Hi,\n\n"
+            "I am interested in your listing for the '${item.title}' (listed at ${item.priceText}) on the CEM app.\n\n"
+            "I would like to check it out. Please let me know your availability and a convenient place to meet on campus.\n\n"
+            "Thanks!"
+          );
 
-              // Uses the actual seller's email now!
-              final Uri emailUri = Uri.parse("mailto:$sellerEmail?subject=$subject&body=$body");
-              
-              if (await canLaunchUrl(emailUri)) {
-                await launchUrl(emailUri);
-              } else {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Could not open email client."), backgroundColor: Colors.redAccent)
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF8C00),
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              elevation: 10, shadowColor: const Color(0xFFFF8C00).withOpacity(0.3),
-            ),
-            child: const Text("I'M INTERESTED", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
-          ),
+          final Uri emailUri = Uri.parse("mailto:$sellerEmail?subject=$subject&body=$body");
+          
+          if (await canLaunchUrl(emailUri)) {
+            await launchUrl(emailUri);
+          } else {
+            // Execute the R4 Mitigation: Copy to clipboard
+            await Clipboard.setData(ClipboardData(text: sellerEmail));
+            
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Email client failed. Address copied to clipboard!"), 
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 4),
+                )
+              );
+            }
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFF8C00),
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 10, shadowColor: const Color(0xFFFF8C00).withOpacity(0.3),
         ),
-        const SizedBox(width: 15),
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: const Icon(Icons.favorite_border, color: Color(0xFFFFB74D)),
-        ),
-      ],
+        child: const Text("I'M INTERESTED", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
+      ),
     );
   }
 
