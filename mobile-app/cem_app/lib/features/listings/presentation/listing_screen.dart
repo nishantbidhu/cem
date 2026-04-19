@@ -115,7 +115,7 @@ class _ListingScreenState extends State<ListingScreen> {
             onChanged: (value) => setState(() => _searchQuery = value), 
             textAlignVertical: TextAlignVertical.center, 
             style: const TextStyle(color: Colors.white, fontSize: 14), 
-            decoration: const InputDecoration(hintText: "Search gear...", hintStyle: TextStyle(color: Color(0xFF94A3B8)), border: InputBorder.none, prefixIcon: Icon(Icons.search, color: Color(0xFF94A3B8), size: 20))
+            decoration: const InputDecoration(hintText: "Search...", hintStyle: TextStyle(color: Color(0xFF94A3B8)), border: InputBorder.none, prefixIcon: Icon(Icons.search, color: Color(0xFF94A3B8), size: 20))
           )
         ),
       ),
