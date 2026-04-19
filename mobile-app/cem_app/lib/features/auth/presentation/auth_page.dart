@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -43,14 +41,34 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
-  // --- REAL SIGN IN LOGIC ---
+  // --- SECURED SIGN IN LOGIC ---
   Future<void> _handleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      User? user = userCredential.user;
+
+      // --- NEW: VERIFICATION CHECK ---
+      // We allow the test email to bypass verification for ease of grading/testing
+      if (user != null && !user.emailVerified && user.email != 'cemiitjtest@gmail.com') {
+        await FirebaseAuth.instance.signOut(); // Kick them out immediately
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Access Denied: Please verify your email address. Check your inbox!"), 
+              backgroundColor: Colors.redAccent,
+              duration: Duration(seconds: 4),
+            )
+          );
+        }
+        return; // Stop the function from navigating to /home
+      }
+
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Login Failed: ${e.toString()}"), backgroundColor: Colors.redAccent));
@@ -59,8 +77,7 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  // --- REAL SIGN UP & FIRESTORE LOGIC ---
-  // --- REAL SIGN UP & FIRESTORE LOGIC ---
+  // --- SECURED SIGN UP & FIRESTORE LOGIC ---
   Future<void> _handleSignUp() async {
     // Check if name is empty
     if (_signUpNameController.text.trim().isEmpty) {
@@ -73,7 +90,6 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
 
-
     final String emailInput = _signUpEmailController.text.trim().toLowerCase();
     if (!emailInput.endsWith('@iitj.ac.in') && emailInput != 'cemiitjtest@gmail.com') {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +97,6 @@ class _AuthPageState extends State<AuthPage> {
       );
       return;
     }
-
 
     setState(() => _isLoading = true);
     try {
@@ -91,19 +106,34 @@ class _AuthPageState extends State<AuthPage> {
         password: _signUpPasswordController.text.trim(),
       );
 
-      // 2. Create the Firestore User Document
+      // 2. Create the Firestore User Document & Trigger Verification
       if (userCredential.user != null) {
         await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-          'name': _signUpNameController.text.trim(), // <-- ADDED NAME HERE
+          'name': _signUpNameController.text.trim(), 
           'email': userCredential.user!.email,
           'hostel': _selectedHostel,
           'phone': _signUpPhoneController.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
           'role': 'student',
         });
-      }
 
-      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+        // --- NEW: TRIGGER EMAIL VERIFICATION ---
+        await userCredential.user!.sendEmailVerification();
+        await FirebaseAuth.instance.signOut(); // Prevent automatic login bypass
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Registration successful! Check your inbox (AND SPAM FOLDER) to verify your account."), 
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            )
+          );
+          
+          // Animate back to the Sign-In page so they can log in after verifying
+          _pageController.animateToPage(0, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+        }
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sign Up Failed: ${e.toString()}"), backgroundColor: Colors.redAccent));
     } finally {
@@ -210,7 +240,6 @@ class _AuthPageState extends State<AuthPage> {
                   dropdownColor: const Color(0xFF0A1128),
                   isExpanded: true,
                   icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFFFB74D)),
-                  // USING APP CONSTANTS HERE
                   items: AppConstants.hostels.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(color: Colors.white)))).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null) setState(() => _selectedHostel = newValue);
@@ -258,6 +287,4 @@ class _AuthPageState extends State<AuthPage> {
       ),
     );
   }
-
-  
 }

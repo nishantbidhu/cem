@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/listing_service.dart';
 import '../domain/listing_model.dart';
-import 'notifications_popup.dart'; // --- NEW: Added import ---
+import 'notifications_popup.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -25,7 +25,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _buildToggleButton(),
         Expanded(
           child: StreamBuilder<List<Listing>>(
-            // Dynamic history based on current mock account
             stream: isBoughtTab 
                 ? _service.getBoughtHistory(_uid!) 
                 : _service.getSoldHistory(_uid!),
@@ -54,13 +53,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withOpacity(0.05))),
       child: Row(children: [
-          Container(width: 60, height: 60, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(16)), child: Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, color: const Color(0xFFFFB74D), size: 28)),
+          // --- FIX IS HERE: ADDED IMAGE LOGIC ---
+          Container(
+            width: 60, 
+            height: 60, 
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05), 
+              borderRadius: BorderRadius.circular(16),
+              image: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(item.imageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ), 
+            child: item.imageUrl == null || item.imageUrl!.isEmpty
+                ? Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, color: const Color(0xFFFFB74D), size: 28)
+                : null,
+          ),
+          // --- END OF FIX ---
+          
           const SizedBox(width: 20),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                 const SizedBox(height: 4),
                 Text(isBoughtTab ? "EXCHANGED" : "SOLD", style: const TextStyle(fontSize: 10, color: Color(0xFFFFB74D), fontWeight: FontWeight.bold)),
-                Text("DATE: JUST NOW", style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+                const Text("DATE: JUST NOW", style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
           ])),
           Text(item.priceText, style: const TextStyle(color: Color(0xFFFFB74D), fontSize: 18, fontWeight: FontWeight.w900)),
       ]),
@@ -75,7 +93,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Row(
             children: [
               _buildActionBtn(Icons.qr_code_scanner, onTap: () => _showVerificationSheet(context)), 
-              // --- UPDATED: Added onTap functionality ---
               _buildActionBtn(Icons.notifications, onTap: () => showNotificationsPopup(context))
             ]
           ),

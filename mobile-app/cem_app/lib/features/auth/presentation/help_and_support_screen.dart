@@ -41,7 +41,7 @@ class HelpAndSupportScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _buildStaticContactRow(Icons.email_outlined, "support@example.com"),
+                  _buildStaticContactRow(Icons.email_outlined, "cemiitjtest@gmail.com"),
                   const Divider(height: 24),
                   _buildStaticContactRow(Icons.phone_android_outlined, "+91-800-123-4567"),
                 ],

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import '../../data/listing_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../data/listing_service.dart';
 import '../../domain/listing_model.dart';
+// IMPORTANT: Update this import path to wherever you saved cloudinary_service.dart!
+import '../../data/cloudinary_service.dart'; 
 
 class CreationFormScreen extends StatefulWidget {
   final bool isSalePost; 
@@ -19,6 +21,7 @@ class CreationFormScreen extends StatefulWidget {
 
 class _CreationFormScreenState extends State<CreationFormScreen> {
   final ListingService _listingService = ListingService();
+  final CloudinaryService _cloudinaryService = CloudinaryService(); // --- NEW: CLOUDINARY INSTANCE ---
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
@@ -32,7 +35,6 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
   final List<String> _categories = ['Bicycles', 'Tech/Electronics', 'Books/Notes', 'Lab Gear', 'Others'];
   final List<String> _conditions = ['New', 'Like New', 'Used - Good', 'Used - Fair'];
 
-  // --- NEW: IMAGE STATE VARIABLES ---
   File? _selectedImage;
   String? _existingImageUrl;
 
@@ -51,41 +53,23 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
       
       _selectedCategory = widget.existingListing!.category;
       _selectedCondition = widget.existingListing!.condition;
-      _existingImageUrl = widget.existingListing!.imageUrl; // Load existing image if editing
+      _existingImageUrl = widget.existingListing!.imageUrl; 
     }
   }
 
-  // --- NEW: COMPRESSION & UPLOAD LOGIC ---
   Future<void> _pickAndCompressImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 60, // Reduces file size by 40% natively
-      maxWidth: 800,    // Prevents massive images from eating storage
+      imageQuality: 60, 
+      maxWidth: 800,    
     );
 
     if (pickedFile != null) {
       setState(() {
         _selectedImage = File(pickedFile.path);
-        _existingImageUrl = null; // Clear old URL if they pick a new photo
+        _existingImageUrl = null; 
       });
-    }
-  }
-
-  Future<String?> _uploadImageToStorage(String listingId) async {
-    if (_selectedImage == null) return _existingImageUrl; // Return old URL if no new image picked
-    
-    try {
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('listing_images')
-          .child('$listingId.jpg');
-
-      await storageRef.putFile(_selectedImage!);
-      return await storageRef.getDownloadURL(); 
-    } catch (e) {
-      debugPrint("Image upload failed: $e");
-      return null;
     }
   }
 
@@ -114,8 +98,17 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
       String finalPriceText = widget.isSalePost ? "₹${_priceController.text}" : "Budget: ₹${_priceController.text}";
       String generatedId = widget.existingListing?.id ?? const Uuid().v4();
 
-      // --- NEW: TRIGGER IMAGE UPLOAD ---
-      String? finalImageUrl = await _uploadImageToStorage(generatedId);
+      // --- NEW: UPLOAD TO CLOUDINARY INSTEAD OF FIREBASE ---
+      String? finalImageUrl = _existingImageUrl; // Default to existing if no new image
+      
+      if (_selectedImage != null) {
+        finalImageUrl = await _cloudinaryService.uploadImage(_selectedImage!);
+        
+        // If upload fails, alert user and stop submission
+        if (finalImageUrl == null) {
+          throw Exception("Image upload to Cloudinary failed. Please try again.");
+        }
+      }
 
       final newListing = Listing(
         id: generatedId,
@@ -127,7 +120,7 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
         description: "${_detailsController.text.trim()}\nCondition: $_selectedCondition",
         isSeeking: !widget.isSalePost,
         sellerId: currentUid, 
-        imageUrl: finalImageUrl, // <-- ATTACH THE FIREBASE STORAGE URL HERE
+        imageUrl: finalImageUrl, // <-- NOW CONTAINS THE CLOUDINARY URL
         transactionCode: widget.existingListing?.transactionCode,
         boughtBy: widget.existingListing?.boughtBy,
       );
@@ -138,9 +131,29 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
         await _listingService.addListing(newListing);
       }
 
+      // --- UPDATED SUCCESS MESSAGE WITH TIP ---
+      // --- UPDATED SUCCESS MESSAGE WITH TIP & MARGIN ---
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Successfully Published!"), backgroundColor: Colors.green));
-        Navigator.pop(context);
+        final isNewPost = widget.existingListing == null;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isNewPost 
+                  ? "Successfully Published!\n\nTip: Find the product code in My Listings." 
+                  : "Listing Successfully Updated!",
+              style: const TextStyle(color: Colors.white, height: 1.4, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 5), 
+            behavior: SnackBarBehavior.floating, 
+            
+            // --- THE FIX: Push the snackbar up to clear the custom dock ---
+            margin: const EdgeInsets.only(bottom: 110, left: 20, right: 20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // Makes the edges nicely rounded too!
+          )
+        );
+        Navigator.pop(context); // Go back to the feed
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
@@ -167,7 +180,6 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- NEW: IMAGE PICKER UI ---
               _buildImagePicker(),
               const SizedBox(height: 18),
 
@@ -198,7 +210,6 @@ class _CreationFormScreenState extends State<CreationFormScreen> {
     );
   }
 
-  // --- NEW: IMAGE PICKER UI WIDGET ---
   Widget _buildImagePicker() {
     return GestureDetector(
       onTap: _pickAndCompressImage,

@@ -1,7 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
+// --- NEW IMPORT ---
+import 'package:url_launcher/url_launcher.dart'; 
+
 import 'update_profile_screen.dart'; 
 import '../../listings/presentation/my_listings_screen.dart';
 import '../../listings/data/listing_service.dart';
@@ -26,7 +28,7 @@ class ProfileScreen extends StatelessWidget {
         // Safely extract the data
         final userData = snapshot.data!.data() as Map<String, dynamic>?;
         final String userName = userData?['name'] ?? 'Student Account';
-        final String userPhone = userData?['phone'] ?? '+91 00000 00000'; // <-- GRAB THE PHONE
+        final String userPhone = userData?['phone'] ?? '+91 00000 00000'; 
         final String initial = userName.isNotEmpty ? userName[0].toUpperCase() : 'U';
 
         return SingleChildScrollView(
@@ -44,11 +46,10 @@ class ProfileScreen extends StatelessWidget {
               Text(user.email?.toUpperCase() ?? "MAIL@IITJ.AC.IN", 
                 style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold)),
               
-              // --- NEW: DISPLAY THE PHONE NUMBER ---
+              // DISPLAY THE PHONE NUMBER 
               const SizedBox(height: 4),
               Text(userPhone, 
                 style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold)),
-              // -------------------------------------
 
               const SizedBox(height: 30),
               _buildStatsRow(), 
@@ -67,7 +68,37 @@ class ProfileScreen extends StatelessWidget {
               _buildMenuTile(Icons.help_outline, "Help & Support",
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpAndSupportScreen())),
               ),
-              _buildMenuTile(Icons.chat_bubble_outline, "Send App Feedback"),
+              
+              // --- UPDATED FEEDBACK TILE LOGIC ---
+
+              _buildMenuTile(
+                Icons.chat_bubble_outline, 
+                "Send App Feedback",
+                onTap: () async {
+                  // THE FIX: Manually encoding the spaces as %20 prevents the "+" bug in Gmail
+                  final Uri emailUri = Uri.parse('mailto:cemiitjtest@gmail.com?subject=CEM%20Feedback');
+
+                  try {
+                    if (await canLaunchUrl(emailUri)) {
+                      await launchUrl(emailUri);
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("No email app found on your device."), backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Failed to open email."), backgroundColor: Colors.redAccent),
+                      );
+                    }
+                  }
+                },
+              ),
+
+              // ------------------------------------
               
               const SizedBox(height: 10),
               _buildLogoutTile(context),

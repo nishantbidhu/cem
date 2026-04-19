@@ -42,6 +42,29 @@ void showNotificationsPopup(BuildContext context) {
               ],
             ),
             const Divider(color: Colors.white10, height: 30),
+
+            // --- NEW: PERMANENT TIP MESSAGE ---
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16), // Adds space before the scrolling list
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF8C00).withOpacity(0.1), // Subtle orange tint
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFF8C00).withOpacity(0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Color(0xFFFFB74D), size: 24),
+                  SizedBox(width: 15),
+                  Expanded(
+                    child: Text(
+                      "Tip: You can find the product code in My Listings.",
+                      style: TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             
             // --- NOTIFICATION LIST ---
             Expanded(
@@ -54,7 +77,7 @@ void showNotificationsPopup(BuildContext context) {
                           .orderBy('timestamp', descending: true)
                           .snapshots(),
                       builder: (context, snapshot) {
-                        if (snapshot.hasError) return Center(child: Text("Waiting for Firebase Index...", style: const TextStyle(color: Color(0xFF94A3B8))));
+                        if (snapshot.hasError) return const Center(child: Text("Waiting for Firebase Index...", style: TextStyle(color: Color(0xFF94A3B8))));
                         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFFFB74D)));
 
                         final docs = snapshot.data?.docs ?? [];
