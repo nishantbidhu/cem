@@ -1,7 +1,3 @@
-
-
-
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/listing_service.dart';
@@ -87,11 +83,26 @@ class MyListingsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // --- FIX IS HERE: ADDED IMAGE LOGIC ---
           Container(
-            width: 70, height: 70,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(16)),
-            child: Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, color: const Color(0xFFFFB74D), size: 24),
+            width: 70, 
+            height: 70,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.03), 
+              borderRadius: BorderRadius.circular(16),
+              image: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(item.imageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: item.imageUrl == null || item.imageUrl!.isEmpty
+                ? Icon(item.isSeeking ? Icons.person_search : Icons.directions_bike, color: const Color(0xFFFFB74D), size: 24)
+                : null,
           ),
+          // --- END OF FIX ---
+          
           const SizedBox(width: 15),
           Expanded(
             child: Column(
